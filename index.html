@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система достижения целей 2026</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Цели 2026">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .role-card { transition: all 0.3s ease; }
+        .role-card:hover { transform: translateY(-2px); }
+        .progress-bar { transition: width 0.5s ease; }
+
+        /* Scroll tabs on mobile */
+        .tabs-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .tabs-scroll::-webkit-scrollbar { display: none; }
+        .tabs-scroll .flex { min-width: max-content; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
+    <div id="app" class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Loading State -->
+        <div id="loading" class="text-center py-20">
+            <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+            <p class="mt-4 text-gray-600">Загрузка ваших целей...</p>
+        </div>
+
+        <!-- Main App -->
+        <div id="mainApp" class="hidden">
+            <!-- Header -->
+            <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h1 class="text-2xl md:text-4xl font-bold text-gray-800">Система достижения целей 2026</h1>
+                        <p class="text-gray-600 mt-2">Трекинг прогресса и еженедельное планирование</p>
+                    </div>
+                    <div class="text-right ml-4">
+                        <div class="text-sm text-gray-500">Неделя года</div>
+                        <div class="text-3xl font-bold text-blue-600" id="weekNumber"></div>
+                    </div>
+                </div>
+
+                <!-- Overall Progress -->
+                <div class="mt-4">
+                    <div class="flex justify-between mb-2">
+                        <span class="text-sm font-medium text-gray-700">Общий прогресс по целям</span>
+                        <span class="text-sm font-medium text-gray-700" id="overallProgress">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-4">
+                        <div id="overallProgressBar" class="progress-bar bg-gradient-to-r from-blue-500 to-blue-600 h-4 rounded-full" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="bg-white rounded-2xl shadow-lg mb-8">
+                <div class="tabs-scroll">
+                    <div class="flex border-b">
+                        <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-button px-6 py-4 font-semibold text-blue-600 border-b-2 border-blue-600 whitespace-nowrap">
+                            📊 Dashboard
+                        </button>
+                        <button onclick="switchTab('weekly')" id="tab-weekly" class="tab-button px-6 py-4 font-semibold text-gray-600 hover:text-blue-600 whitespace-nowrap">
+                            📝 Еженедельный план
+                        </button>
+                        <button onclick="switchTab('goals')" id="tab-goals" class="tab-button px-6 py-4 font-semibold text-gray-600 hover:text-blue-600 whitespace-nowrap">
+                            🎯 Трекер целей
+                        </button>
+                        <button onclick="switchTab('review')" id="tab-review" class="tab-button px-6 py-4 font-semibold text-gray-600 hover:text-blue-600 whitespace-nowrap">
+                            ✅ Еженедельный обзор
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            <div id="content-dashboard" class="tab-content">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="rolesContainer"></div>
+            </div>
+
+            <div id="content-weekly" class="tab-content hidden">
+                <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">План на неделю #<span id="weekPlanNumber"></span></h2>
+
+                    <div class="mb-8">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Главные приоритеты недели (топ-3)</label>
+                        <textarea id="weekPriorities" rows="3" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="1. &#10;2. &#10;3. "></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="weeklyRolesContainer"></div>
+
+                    <div class="mt-8 flex flex-wrap gap-4">
+                        <button onclick="saveWeeklyPlan()" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-semibold">
+                            💾 Сохранить план
+                        </button>
+                        <button onclick="exportWeeklyPlan()" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold">
+                            📥 Экспорт в текст
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="content-goals" class="tab-content hidden">
+                <div class="space-y-6" id="goalsDetailContainer"></div>
+            </div>
+
+            <div id="content-review" class="tab-content hidden">
+                <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Еженедельный обзор</h2>
+
+                    <div class="space-y-6">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3">✅ Что удалось на этой неделе?</h3>
+                            <textarea id="reviewWins" rows="4" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3">🚧 Что не удалось / осталось?</h3>
+                            <textarea id="reviewChallenges" rows="4" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3">💡 Инсайты и выводы</h3>
+                            <textarea id="reviewInsights" rows="4" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3">🎯 Приоритеты на следующую неделю</h3>
+                            <textarea id="reviewNextWeek" rows="4" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+
+                        <div class="flex flex-wrap gap-4">
+                            <button onclick="saveWeeklyReview()" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-semibold">
+                                💾 Сохранить обзор
+                            </button>
+                            <button onclick="viewReviewHistory()" class="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 font-semibold">
+                                📚 История обзоров
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="reviewHistory" class="mt-8 hidden">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">История еженедельных обзоров</h3>
+                        <div id="reviewHistoryContent" class="space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ─── Data ────────────────────────────────────────────────────────────────
+        const GOALS_DATA = {
+            "Создатель бизнеса": {
+                description: "Основатель и владелец KSM, группы компаний по тепловому оборудованию",
+                icon: "🏭",
+                color: "blue",
+                goals: [
+                    { id: 1,  goal: "Довести оборот до 15-20 млн USD",           metrics: "Оборот 12 млн. USD = 6 млрд. тенге, прибыль 2 млн. USD = 1 млрд. тенге", status: "В процессе" },
+                    { id: 2,  goal: "Запущено производство и офис цех №2",        metrics: "Запущеное производство каркасов модулей и котлов в новом цехе" },
+                    { id: 3,  goal: "Внедрить финучёт - ИИ агент экономист",      metrics: "Наличие ежемесячного P&L и KPI анализ от ИИ агента" },
+                    { id: 4,  goal: "KPI ТОПов мотивационную систему",            metrics: "Бонусы выплачиваются ежеквартально команде топов" },
+                    { id: 5,  goal: "KPI линейного персонала с учетом качества",  metrics: "Каждый рабочий влияет на свою ЗП" },
+                    { id: 6,  goal: "Произведено и продано более 200 котлов",     metrics: "Произведено и продано более 50-100 котлов в т. ч. 5 паровых" },
+                    { id: 7,  goal: "Система хронометража и поток",               metrics: "Четкие метрики по процессам" },
+                    { id: 8,  goal: "Запуск производства энергоустановок 5000 КВт", metrics: "Запущен первый проект три- или ко-генерации" }
+                ]
+            },
+            "Лидер семьи": {
+                description: "Любящий, внимательный и чуткий лидер семьи",
+                icon: "❤️",
+                color: "pink",
+                goals: [
+                    { id: 91, goal: "Регулярные свидания с любимой",     metrics: "Минимум 1 свидание в месяц (12 свиданий в 2026)" },
+                    { id: 92, goal: "Семейные отпуска и путешествия",     metrics: "2 отпуска с семьей + 1 отпуск только с супругой (3 поездки)" },
+                    { id: 93, goal: "Общие хобби и увлечения",            metrics: "Минимум 2 регулярных совместных активности" },
+                    { id: 94, goal: "Качество отношений",                 metrics: "Ежемесячная оценка удовлетворенности 8+ из 10" }
+                ]
+            },
+            "Инвестор и владелец капитала": {
+                description: "Успешный инвестор получающий стабильный пассивный доход",
+                icon: "💰",
+                color: "green",
+                goals: [
+                    { id: 10, goal: "Коммерческая недвижимость ~1 млн USD",      metrics: "Куплена недвижимость на 200 000 USD" },
+                    { id: 11, goal: "Пассивный поток от аренды 10 000 USD/мес",  metrics: "Пассивный поток 5 000 - 7 000 USD/мес" },
+                    { id: 12, goal: "Дивиденды 2 млн USD в год",                 metrics: "Дивиденды 1 млн USD и реинвестирование" },
+                    { id: 13, goal: "Доход жены от пилатес студии 100 000 USD",  metrics: "Определено направление, приносит доход" }
+                ]
+            },
+            "Человек влияния и общественный лидер": {
+                description: "Человек приносящий пользу обществу",
+                icon: "🌟",
+                color: "purple",
+                goals: [
+                    { id: 14, goal: "Руководитель Карагандинского филиала АКК", metrics: "В дружбе и согласии с ЛМ и активом" }
+                ]
+            },
+            "Спортсмен любитель": {
+                description: "Полный энергии физически здоровый мужчина",
+                icon: "🎾",
+                color: "orange",
+                goals: [
+                    { id: 15, goal: "Регулярный теннис и турниры", metrics: "Вес 70-72 кг, теннис 4.0, 2 турнира выиграно, гольф хэндкап <15" }
+                ]
+            }
+        };
+
+        // ─── Storage helpers (localStorage only) ─────────────────────────────────
+        const storage = {
+            get(key) {
+                try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
+            },
+            set(key, value) {
+                try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
+            },
+            keys(prefix) {
+                const result = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k && k.startsWith(prefix)) result.push(k);
+                }
+                return result;
+            }
+        };
+
+        // ─── State ────────────────────────────────────────────────────────────────
+        let currentWeek = 0;
+        let goalsProgress = {};
+
+        // ─── Init ─────────────────────────────────────────────────────────────────
+        function init() {
+            currentWeek = getWeekNumber(new Date());
+            document.getElementById('weekNumber').textContent = currentWeek;
+            document.getElementById('weekPlanNumber').textContent = currentWeek;
+
+            loadProgress();
+            renderDashboard();
+            renderWeeklyPlan();
+            renderGoalsDetail();
+            loadWeeklyPlan();
+            loadWeeklyReview();
+
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+
+            // Register Service Worker
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js').catch(() => {});
+            }
+        }
+
+        function getWeekNumber(date) {
+            const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+            const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
+            return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+        }
+
+        // ─── Progress ─────────────────────────────────────────────────────────────
+        function loadProgress() {
+            const saved = storage.get('goals-progress');
+            if (saved) {
+                goalsProgress = saved;
+            } else {
+                initializeProgress();
+            }
+        }
+
+        function initializeProgress() {
+            Object.values(GOALS_DATA).forEach(({ goals }) => {
+                goals.forEach(g => { goalsProgress[g.id] = { progress: 0, notes: '' }; });
+            });
+        }
+
+        function saveProgress() {
+            const ok = storage.set('goals-progress', goalsProgress);
+            showNotification(ok ? 'Прогресс сохранен!' : 'Ошибка сохранения', ok ? 'success' : 'error', 2000);
+        }
+
+        // ─── Weekly Plan ──────────────────────────────────────────────────────────
+        function loadWeeklyPlan() {
+            const plan = storage.get(`week-plan-${currentWeek}`);
+            if (!plan) return;
+            document.getElementById('weekPriorities').value = plan.priorities || '';
+            Object.entries(plan.roleTasks || {}).forEach(([role, tasks]) => {
+                const el = document.getElementById(`role-tasks-${role.replace(/\s+/g, '-')}`);
+                if (el) el.value = tasks;
+            });
+        }
+
+        function saveWeeklyPlan() {
+            const plan = {
+                week: currentWeek,
+                priorities: document.getElementById('weekPriorities').value,
+                roleTasks: {}
+            };
+            Object.keys(GOALS_DATA).forEach(role => {
+                const el = document.getElementById(`role-tasks-${role.replace(/\s+/g, '-')}`);
+                if (el) plan.roleTasks[role] = el.value;
+            });
+            const ok = storage.set(`week-plan-${currentWeek}`, plan);
+            showNotification(ok ? 'План недели сохранен!' : 'Ошибка сохранения', ok ? 'success' : 'error');
+        }
+
+        // ─── Weekly Review ────────────────────────────────────────────────────────
+        function loadWeeklyReview() {
+            const review = storage.get(`week-review-${currentWeek}`);
+            if (!review) return;
+            document.getElementById('reviewWins').value       = review.wins || '';
+            document.getElementById('reviewChallenges').value = review.challenges || '';
+            document.getElementById('reviewInsights').value   = review.insights || '';
+            document.getElementById('reviewNextWeek').value   = review.nextWeek || '';
+        }
+
+        function saveWeeklyReview() {
+            const review = {
+                week: currentWeek,
+                date: new Date().toISOString(),
+                wins:       document.getElementById('reviewWins').value,
+                challenges: document.getElementById('reviewChallenges').value,
+                insights:   document.getElementById('reviewInsights').value,
+                nextWeek:   document.getElementById('reviewNextWeek').value
+            };
+            const ok = storage.set(`week-review-${currentWeek}`, review);
+            showNotification(ok ? 'Обзор недели сохранен!' : 'Ошибка сохранения', ok ? 'success' : 'error');
+        }
+
+        function viewReviewHistory() {
+            const historyDiv = document.getElementById('reviewHistory');
+            const contentDiv = document.getElementById('reviewHistoryContent');
+
+            const keys = storage.keys('week-review-').sort().reverse();
+            if (keys.length === 0) {
+                contentDiv.innerHTML = '<p class="text-gray-600">История обзоров пока пуста</p>';
+            } else {
+                contentDiv.innerHTML = keys.map(key => {
+                    const review = storage.get(key);
+                    if (!review) return '';
+                    return `
+                        <div class="border-l-4 border-blue-500 pl-4 py-2">
+                            <div class="font-semibold text-gray-800">Неделя ${review.week}</div>
+                            <div class="text-sm text-gray-600">${new Date(review.date).toLocaleDateString('ru-RU')}</div>
+                            <div class="mt-2 text-sm">
+                                <strong>Достижения:</strong> ${(review.wins || '').substring(0, 150)}${review.wins?.length > 150 ? '…' : ''}
+                            </div>
+                        </div>`;
+                }).join('');
+            }
+            historyDiv.classList.remove('hidden');
+        }
+
+        // ─── Render Dashboard ─────────────────────────────────────────────────────
+        function renderDashboard() {
+            const container = document.getElementById('rolesContainer');
+            container.innerHTML = Object.entries(GOALS_DATA).map(([role, data]) => {
+                const completed = data.goals.filter(g => (goalsProgress[g.id]?.progress || 0) >= 100).length;
+                const avg = data.goals.reduce((s, g) => s + (goalsProgress[g.id]?.progress || 0), 0) / data.goals.length;
+                return `
+                    <div class="role-card bg-white rounded-xl shadow-lg p-6 border-l-4 border-${data.color}-500">
+                        <div class="flex items-start justify-between mb-4">
+                            <div>
+                                <div class="text-3xl mb-2">${data.icon}</div>
+                                <h3 class="font-bold text-lg text-gray-800">${role}</h3>
+                                <p class="text-sm text-gray-600">${data.description}</p>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-600">Прогресс</span>
+                                <span class="font-semibold text-${data.color}-600">${Math.round(avg)}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="progress-bar bg-${data.color}-500 h-2 rounded-full" style="width: ${avg}%"></div>
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-600">
+                            <div>Целей: <span class="font-semibold">${data.goals.length}</span></div>
+                            <div>Выполнено: <span class="font-semibold text-green-600">${completed}</span></div>
+                        </div>
+                    </div>`;
+            }).join('');
+            updateOverallProgress();
+        }
+
+        // ─── Render Weekly Plan ───────────────────────────────────────────────────
+        function renderWeeklyPlan() {
+            document.getElementById('weeklyRolesContainer').innerHTML =
+                Object.entries(GOALS_DATA).map(([role, data]) => `
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-2xl">${data.icon}</span>
+                            <h3 class="font-semibold text-gray-800">${role}</h3>
+                        </div>
+                        <textarea
+                            id="role-tasks-${role.replace(/\s+/g, '-')}"
+                            rows="4"
+                            class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500"
+                            placeholder="Задачи на неделю для этой роли..."
+                        ></textarea>
+                    </div>`).join('');
+        }
+
+        // ─── Render Goals Detail ──────────────────────────────────────────────────
+        function renderGoalsDetail() {
+            document.getElementById('goalsDetailContainer').innerHTML =
+                Object.entries(GOALS_DATA).map(([role, data]) => `
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <div class="flex items-center gap-3 mb-4 border-b pb-3">
+                            <span class="text-3xl">${data.icon}</span>
+                            <div>
+                                <h3 class="font-bold text-xl text-gray-800">${role}</h3>
+                                <p class="text-sm text-gray-600">${data.description}</p>
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            ${data.goals.map(goal => {
+                                const progress = goalsProgress[goal.id]?.progress || 0;
+                                const notes    = goalsProgress[goal.id]?.notes    || '';
+                                return `
+                                <div class="border-l-4 border-${data.color}-300 pl-4 py-2">
+                                    <div class="font-semibold text-gray-800 mb-1">${goal.goal}</div>
+                                    <div class="text-sm text-gray-600 mb-3">${goal.metrics}</div>
+                                    <div class="mb-2">
+                                        <div class="flex items-center gap-3 mb-1">
+                                            <label class="text-xs text-gray-600">Прогресс:</label>
+                                            <input
+                                                type="number" min="0" max="100" value="${progress}"
+                                                id="progress-input-${goal.id}"
+                                                class="w-20 text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-${data.color}-500"
+                                                oninput="updateGoalProgressFromInput(${goal.id}, this.value)"
+                                            />
+                                            <span class="text-xs text-gray-600">%</span>
+                                        </div>
+                                        <input
+                                            type="range" min="0" max="100" value="${progress}"
+                                            id="progress-slider-${goal.id}"
+                                            class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                            oninput="updateGoalProgressFromSlider(${goal.id}, this.value)"
+                                        />
+                                    </div>
+                                    <textarea
+                                        placeholder="Заметки о прогрессе..."
+                                        class="w-full text-sm border border-gray-300 rounded p-2 focus:ring-2 focus:ring-${data.color}-500"
+                                        rows="2"
+                                        onchange="updateGoalNotes(${goal.id}, this.value)"
+                                    >${notes}</textarea>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    </div>`).join('');
+        }
+
+        // ─── Goal Progress Handlers ───────────────────────────────────────────────
+        function updateGoalProgressFromSlider(goalId, value) {
+            const v = parseInt(value);
+            goalsProgress[goalId] = goalsProgress[goalId] || {};
+            goalsProgress[goalId].progress = v;
+            const inp = document.getElementById(`progress-input-${goalId}`);
+            if (inp) inp.value = v;
+            saveProgress();
+            renderDashboard();
+        }
+
+        function updateGoalProgressFromInput(goalId, value) {
+            let v = parseInt(value);
+            if (isNaN(v)) v = 0;
+            v = Math.max(0, Math.min(100, v));
+            goalsProgress[goalId] = goalsProgress[goalId] || {};
+            goalsProgress[goalId].progress = v;
+            const slider = document.getElementById(`progress-slider-${goalId}`);
+            if (slider) slider.value = v;
+            const inp = document.getElementById(`progress-input-${goalId}`);
+            if (inp) inp.value = v;
+            saveProgress();
+            renderDashboard();
+        }
+
+        function updateGoalNotes(goalId, notes) {
+            goalsProgress[goalId] = goalsProgress[goalId] || {};
+            goalsProgress[goalId].notes = notes;
+            saveProgress();
+        }
+
+        // ─── Overall Progress ─────────────────────────────────────────────────────
+        function updateOverallProgress() {
+            const values = Object.values(goalsProgress);
+            const overall = values.length
+                ? Math.round(values.reduce((s, g) => s + (g.progress || 0), 0) / values.length)
+                : 0;
+            document.getElementById('overallProgress').textContent = `${overall}%`;
+            document.getElementById('overallProgressBar').style.width = `${overall}%`;
+        }
+
+        // ─── Tab Navigation ───────────────────────────────────────────────────────
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-button').forEach(el => {
+                el.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                el.classList.add('text-gray-600');
+            });
+            document.getElementById(`content-${tabName}`).classList.remove('hidden');
+            const btn = document.getElementById(`tab-${tabName}`);
+            btn.classList.remove('text-gray-600');
+            btn.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+        }
+
+        // ─── Export ───────────────────────────────────────────────────────────────
+        function exportWeeklyPlan() {
+            const priorities = document.getElementById('weekPriorities').value;
+            let text = `📅 ПЛАН НА НЕДЕЛЮ #${currentWeek}\n\n🎯 ГЛАВНЫЕ ПРИОРИТЕТЫ:\n${priorities}\n\n📋 ЗАДАЧИ ПО РОЛЯМ:\n\n`;
+            Object.entries(GOALS_DATA).forEach(([role, data]) => {
+                const el = document.getElementById(`role-tasks-${role.replace(/\s+/g, '-')}`);
+                if (el?.value) text += `${data.icon} ${role}:\n${el.value}\n\n`;
+            });
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href = url; a.download = `План_неделя_${currentWeek}.txt`; a.click();
+        }
+
+        // ─── Notification ─────────────────────────────────────────────────────────
+        function showNotification(message, type = 'success', duration = 3000) {
+            const colors = { success: 'bg-green-500', error: 'bg-red-500', warning: 'bg-yellow-500' };
+            const icons  = { success: '✅', error: '❌', warning: '⚠️' };
+            const n = document.createElement('div');
+            n.className = `fixed top-4 right-4 ${colors[type] || 'bg-blue-500'} text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2`;
+            n.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${message}</span>`;
+            document.body.appendChild(n);
+            setTimeout(() => n.remove(), duration);
+        }
+
+        // ─── Boot ─────────────────────────────────────────────────────────────────
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
